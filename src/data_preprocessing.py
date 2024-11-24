@@ -6,9 +6,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.impute import SimpleImputer
 
-def load_data(processed = False)->pd.DataFrame:
+def load_data(finalized = False, processed = False)->pd.DataFrame:
 
     rejected_data = pd.read_csv('..\data\\raw\\rejected\\rejected_2007_to_2018Q4.csv')
+
+    if finalized:
+        accepted_data = pd.read_csv('..\data\\finalized\\final_accepted.csv')
+        return accepted_data, rejected_data
 
     if processed:
         accepted_data = pd.read_csv('..\data\\processed\\preprocessed_accepted.csv')
