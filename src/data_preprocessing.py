@@ -8,18 +8,56 @@ from sklearn.impute import SimpleImputer
 
 def load_data(finalized = False, processed = False)->pd.DataFrame:
 
-    rejected_data = pd.read_csv('..\data\\raw\\rejected\\rejected_2007_to_2018Q4.csv')
+    rejected_data = pd.read_csv('..\\data\\raw\\rejected\\rejected_2007_to_2018Q4.csv')
 
     if finalized:
-        accepted_data = pd.read_csv('..\data\\finalized\\final_accepted.csv')
+        accepted_data = pd.read_csv('..\\data\\finalized\\final_accepted.csv')
         return accepted_data, rejected_data
 
     if processed:
-        accepted_data = pd.read_csv('..\data\\processed\\preprocessed_accepted.csv')
+        accepted_data = pd.read_csv('..\\data\\processed\\preprocessed_accepted.csv')
     else:
-        accepted_data = pd.read_csv('..\data\\raw\\accepted\\accepted_2007_to_2018Q4.csv')
+        accepted_data = pd.read_csv('..\\data\\raw\\accepted\\accepted_2007_to_2018Q4.csv')
         
     return accepted_data, rejected_data
+
+def load_accepted_data(finalized = False, processed = False)->pd.DataFrame:
+    processed_chunks = []
+    
+    if finalized:
+        chunks = pd.read_csv('..\\data\\finalized\\final_accepted.csv')
+    if processed:
+        chunks = pd.read_csv('..\\data\\processed\\preprocessed_accepted.csv')
+    else:
+        chunks = pd.read_csv('..\\data\\raw\\accepted\\accepted_2007_to_2018Q4.csv')
+    
+    chunk_size = 100000
+        
+    for start in range(0, chunks.shape[0], chunk_size):
+        end = start + chunk_size
+        chunk = chunks[start:end].copy()
+        # Process each chunk (e.g., filter out 'Late (31-120 days)' rows)
+        chunk = chunk[chunk['loan_status'] != 'Late (31-120 days)']
+        chunk = chunk[chunk['loan_status'] != 'Late (16-30 days)']
+        chunk = chunk[chunk['loan_status'] != 'In Grace Period']
+        chunk = chunk[chunk['loan_status'] != 'Current']
+
+        processed_chunks.append(chunk)
+
+    return pd.concat(processed_chunks, ignore_index=True)
+
+
+def load_rejected_data()->pd.DataFrame:
+
+    chunk_size = 100000  # Adjust based on your system's memory
+    chunks = []
+
+    for chunk in pd.read_csv('..\\data\\raw\\rejected\\rejected_2007_to_2018Q4.csv', chunksize=chunk_size, low_memory=False):
+        # Perform processing on each chunk if needed
+        chunks.append(chunk)
+
+    rejected_data = pd.concat(chunks, ignore_index=True)
+    return rejected_data
 
 def drop_missing_features(data: pd.DataFrame, threshold = 0.5)->pd.DataFrame:
 
@@ -107,3 +145,55 @@ def impute_data(accepted_data, rejected_data)->None:
     rejected_data[categorical_cols_rejected] = cat_imputer.fit_transform(rejected_data[categorical_cols_rejected])
 
     return accepted_data, rejected_data
+
+def impute_in_chunks(accepted_data, rejected_data, chunk_size=100000):
+
+    num_imputer = SimpleImputer(strategy='median')
+    cat_imputer = SimpleImputer(strategy='most_frequent')
+
+    # Separate numerical and categorical columns
+    numerical_cols = accepted_data.select_dtypes(include=['float64']).columns
+    categorical_cols = accepted_data.select_dtypes(include=['object']).columns
+
+    chunks_1 = []
+    for start in range(0, accepted_data.shape[0], chunk_size):
+        end = start + chunk_size
+        chunk = accepted_data[start:end].copy()
+
+        chunk[numerical_cols] = num_imputer.fit_transform(chunk[numerical_cols])
+        chunk[categorical_cols] = cat_imputer.fit_transform(chunk[categorical_cols])
+
+        # imputed_chunk = pd.DataFrame(imputer.fit_transform(chunk), columns=data.columns)
+        chunks_1.append(chunk)
+    
+    # Impute missing values in rejected_data
+    numerical_cols_rejected = rejected_data.select_dtypes(include=['float64']).columns
+    categorical_cols_rejected = rejected_data.select_dtypes(include=['object']).columns
+
+    chunks_2 = []
+    for start in range(0, rejected_data.shape[0], chunk_size):
+        end = start + chunk_size
+        chunk = rejected_data[start:end].copy()
+
+        chunk[numerical_cols_rejected] = num_imputer.fit_transform(chunk[numerical_cols_rejected])
+        chunk[categorical_cols_rejected] = cat_imputer.fit_transform(chunk[categorical_cols_rejected])
+
+        # imputed_chunk = pd.DataFrame(imputer.fit_transform(chunk), columns=data.columns)
+        chunks_2.append(chunk)
+
+    accepted_data = pd.concat(chunks_1, ignore_index=True)
+    rejected_data = pd.concat(chunks_2, ignore_index=True)
+
+    return accepted_data, rejected_data
+
+
+def drop_late(data: pd.DataFrame)->pd.DataFrame:
+
+    "Drop loans that are on going, late, or in grace period"
+
+    data = data[data['loan_status'] != 'Late (16-30 days)']
+    data = data[data['loan_status'] != 'Late (31-120 days)']
+    data = data[data['loan_status'] != 'In Grace Period']
+    data = data[data['loan_status'] != 'Current']
+
+    return data
