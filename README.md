@@ -1,4 +1,3 @@
 # Credit-Risk-Prediction
 
-Project Report can be found here
-[a relative link](final_report.pdf)
+Project Report can be found at [final report](final_report.pdf)
